@@ -36,9 +36,9 @@ public class MainFrame extends JFrame {
     private static final Logger logger = LoggerFactory.getLogger(MainFrame.class);
     
     private final ConfigManager configManager;
-    private final FileScanner fileScanner;
-    private final PDFDetector pdfDetector;
-    private final NotificationService notificationService;
+    private FileScanner fileScanner;
+    private PDFDetector pdfDetector;
+    private NotificationService notificationService;
     
     // UI组件
     private JTable fileTable;
@@ -575,8 +575,23 @@ public class MainFrame extends JFrame {
         dialog.setVisible(true);
         
         if (dialog.isConfigChanged()) {
-            // 配置已更改，重新加载服务
-            appendLog("配置已更新");
+            appendLog("配置已更新，正在重载服务...");
+            // 如果正在运行，先停止监控
+            if (isRunning) {
+                stopMonitoring();
+            }
+            // 安全关闭旧实例
+            try { fileScanner.stopScanning(); } catch (Exception ignored) {}
+            try { pdfDetector.shutdown(); } catch (Exception ignored) {}
+            try { notificationService.shutdown(); } catch (Exception ignored) {}
+            
+            // 使用最新配置重建服务并重新绑定回调
+            AppConfig cfg = configManager.getConfig();
+            fileScanner = new FileScanner(cfg);
+            pdfDetector = new PDFDetector(cfg);
+            notificationService = new NotificationService(cfg);
+            setupServiceCallbacks();
+            appendLog("服务已重载完成，新的检测规则将生效");
         }
     }
     

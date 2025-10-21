@@ -37,10 +37,21 @@ public class AppConfig {
     private boolean enableImageContentDetection = true;
     
     @JsonProperty("detectionAreaWidth")
-    private int detectionAreaWidth = 400; // 像素 - 适合表格类文档的宽度
+    private int detectionAreaWidth = 200; // 像素 - 默认200
     
     @JsonProperty("detectionAreaHeight")
-    private int detectionAreaHeight = 300; // 像素 - 适合表格类文档的高度
+    private int detectionAreaHeight = 200; // 像素 - 默认200
+    
+    // 新增：百分比宽高（1.0 ~ 100.0），默认等效约200px在900x600参考上
+    @JsonProperty("detectionAreaWidthPercent")
+    private double detectionAreaWidthPercent = 22.2; // 约 200/900*100
+    
+    @JsonProperty("detectionAreaHeightPercent")
+    private double detectionAreaHeightPercent = 33.3; // 约 200/600*100
+    
+    // 新增：水平偏移百分比（-100 ~ 100）
+    @JsonProperty("horizontalOffsetPercent")
+    private int horizontalOffsetPercent = 0;
     
     @JsonProperty("contentPixelDensityThreshold")
     private double contentPixelDensityThreshold = 10.0; // 百分比 - 内容像素密度阈值
@@ -154,6 +165,30 @@ public class AppConfig {
         this.detectionAreaHeight = detectionAreaHeight;
     }
     
+    public double getDetectionAreaWidthPercent() {
+        return detectionAreaWidthPercent;
+    }
+    
+    public void setDetectionAreaWidthPercent(double detectionAreaWidthPercent) {
+        this.detectionAreaWidthPercent = detectionAreaWidthPercent;
+    }
+    
+    public double getDetectionAreaHeightPercent() {
+        return detectionAreaHeightPercent;
+    }
+    
+    public void setDetectionAreaHeightPercent(double detectionAreaHeightPercent) {
+        this.detectionAreaHeightPercent = detectionAreaHeightPercent;
+    }
+    
+    public int getHorizontalOffsetPercent() {
+        return horizontalOffsetPercent;
+    }
+    
+    public void setHorizontalOffsetPercent(int horizontalOffsetPercent) {
+        this.horizontalOffsetPercent = horizontalOffsetPercent;
+    }
+    
     public double getContentPixelDensityThreshold() {
         return contentPixelDensityThreshold;
     }
@@ -241,6 +276,9 @@ public class AppConfig {
         copy.enableImageContentDetection = this.enableImageContentDetection;
         copy.detectionAreaWidth = this.detectionAreaWidth;
         copy.detectionAreaHeight = this.detectionAreaHeight;
+        copy.detectionAreaWidthPercent = this.detectionAreaWidthPercent;
+        copy.detectionAreaHeightPercent = this.detectionAreaHeightPercent;
+        copy.horizontalOffsetPercent = this.horizontalOffsetPercent;
         copy.contentPixelDensityThreshold = this.contentPixelDensityThreshold;
         copy.enableSmsNotification = this.enableSmsNotification;
         copy.callintegJarPath = this.callintegJarPath;

@@ -2,6 +2,7 @@ package com.tcpdftool.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +53,21 @@ public class ConfigManager {
             File configFile = new File(CONFIG_FILE);
             if (configFile.exists()) {
                 config = objectMapper.readValue(configFile, AppConfig.class);
+                // 迁移旧像素ROI到百分比（若旧配置未包含百分比字段）
+                JsonNode root = objectMapper.readTree(configFile);
+                boolean hasWidthPercent = root.has("detectionAreaWidthPercent");
+                boolean hasHeightPercent = root.has("detectionAreaHeightPercent");
+                if (!hasWidthPercent || !hasHeightPercent) {
+                    double wPercent = Math.max(1.0, Math.min(100.0, (config.getDetectionAreaWidth() / 900.0) * 100.0));
+                    double hPercent = Math.max(1.0, Math.min(100.0, (config.getDetectionAreaHeight() / 600.0) * 100.0));
+                    // 保留一位小数
+                    wPercent = Math.round(wPercent * 10.0) / 10.0;
+                    hPercent = Math.round(hPercent * 10.0) / 10.0;
+                    config.setDetectionAreaWidthPercent(wPercent);
+                    config.setDetectionAreaHeightPercent(hPercent);
+                    saveConfig();
+                    logger.info("迁移旧像素ROI至百分比: 宽{}% 高{}%", wPercent, hPercent);
+                }
                 logger.info("配置文件加载成功: {}", CONFIG_FILE);
             } else {
                 // 配置文件不存在，使用默认配置并保存

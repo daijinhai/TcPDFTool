@@ -34,8 +34,14 @@ public class SettingsDialog extends JDialog {
     // 检测设置组件
     private JSpinner fileSizeThresholdSpinner;
     private JCheckBox enableImageDetectionCheckBox;
-    private JSpinner detectionAreaSpinner;
+    // 原有的单一尺寸拆分为宽/高两个输入
+    private JSpinner detectionAreaWidthSpinner;
+    private JSpinner detectionAreaHeightSpinner;
+    // 新增：水平偏移百分比
+    private JSpinner horizontalOffsetSpinner;
     private JSpinner whitePixelThresholdSpinner;
+    // 预览面板
+    private JPanel imagePreviewPanel;
     
     // 短信通知组件
     private JCheckBox enableSmsNotificationCheckBox;
@@ -204,21 +210,46 @@ public class SettingsDialog extends JDialog {
         enableImageDetectionCheckBox.addActionListener(e -> updateImageDetectionControls());
         imagePanel.add(enableImageDetectionCheckBox, imageGbc);
         
+        // 宽
         imageGbc.gridx = 0; imageGbc.gridy = 1;
         imageGbc.gridwidth = 1;
         imageGbc.fill = GridBagConstraints.NONE;
-        JLabel detectionAreaLabel = new JLabel("检测区域大小(像素):");
-        imagePanel.add(detectionAreaLabel, imageGbc);
+        imagePanel.add(new JLabel("检测区域宽(%):"), imageGbc);
         
         imageGbc.gridx = 1;
         imageGbc.fill = GridBagConstraints.HORIZONTAL;
         imageGbc.weightx = 1.0;
-        detectionAreaSpinner = new JSpinner(new SpinnerNumberModel(100, 50, 500, 10));
-        imagePanel.add(detectionAreaSpinner, imageGbc);
+        detectionAreaWidthSpinner = new JSpinner(new SpinnerNumberModel(22.2, 1.0, 100.0, 0.1));
+        ((JSpinner.DefaultEditor) detectionAreaWidthSpinner.getEditor()).getTextField().setColumns(6);
+        imagePanel.add(detectionAreaWidthSpinner, imageGbc);
         
+        // 高
         imageGbc.gridx = 0; imageGbc.gridy = 2;
         imageGbc.fill = GridBagConstraints.NONE;
-        imageGbc.weightx = 0;
+        imagePanel.add(new JLabel("检测区域高(%):"), imageGbc);
+        
+        imageGbc.gridx = 1;
+        imageGbc.fill = GridBagConstraints.HORIZONTAL;
+        imageGbc.weightx = 1.0;
+        detectionAreaHeightSpinner = new JSpinner(new SpinnerNumberModel(33.3, 1.0, 100.0, 0.1));
+        ((JSpinner.DefaultEditor) detectionAreaHeightSpinner.getEditor()).getTextField().setColumns(6);
+        imagePanel.add(detectionAreaHeightSpinner, imageGbc);
+        
+        // 水平偏移
+        imageGbc.gridx = 0; imageGbc.gridy = 3;
+        imageGbc.fill = GridBagConstraints.NONE;
+        imagePanel.add(new JLabel("水平偏移(%):"), imageGbc);
+        
+        imageGbc.gridx = 1;
+        imageGbc.fill = GridBagConstraints.HORIZONTAL;
+        imageGbc.weightx = 1.0;
+        horizontalOffsetSpinner = new JSpinner(new SpinnerNumberModel(0, -100, 100, 1));
+        ((JSpinner.DefaultEditor) horizontalOffsetSpinner.getEditor()).getTextField().setColumns(6);
+        imagePanel.add(horizontalOffsetSpinner, imageGbc);
+        
+        // 内容密度
+        imageGbc.gridx = 0; imageGbc.gridy = 4;
+        imageGbc.fill = GridBagConstraints.NONE;
         JLabel contentDensityLabel = new JLabel("内容密度阈值(%):");
         imagePanel.add(contentDensityLabel, imageGbc);
         
@@ -227,6 +258,21 @@ public class SettingsDialog extends JDialog {
         imageGbc.weightx = 1.0;
         whitePixelThresholdSpinner = new JSpinner(new SpinnerNumberModel(10.0, 0.1, 50.0, 0.1));
         imagePanel.add(whitePixelThresholdSpinner, imageGbc);
+        
+        // 预览画布（9:6比例）
+        imageGbc.gridx = 0; imageGbc.gridy = 5;
+        imageGbc.gridwidth = 2;
+        imageGbc.fill = GridBagConstraints.BOTH;
+        imageGbc.weightx = 1.0; imageGbc.weighty = 1.0;
+        imagePreviewPanel = createImagePreviewPanel();
+        imagePanel.add(imagePreviewPanel, imageGbc);
+        
+        // 监听变化，实时刷新预览
+        detectionAreaWidthSpinner.addChangeListener(e -> imagePreviewPanel.repaint());
+        detectionAreaHeightSpinner.addChangeListener(e -> imagePreviewPanel.repaint());
+        horizontalOffsetSpinner.addChangeListener(e -> imagePreviewPanel.repaint());
+        whitePixelThresholdSpinner.addChangeListener(e -> imagePreviewPanel.repaint());
+        enableImageDetectionCheckBox.addActionListener(e -> imagePreviewPanel.repaint());
         
         gbc.gridy = 1;
         panel.add(imagePanel, gbc);
@@ -239,8 +285,9 @@ public class SettingsDialog extends JDialog {
             "说明:\n" +
             "• 文件大小阈值: 小于此大小的PDF文件被认为可能是空文件\n" +
             "• 图像内容检测: 通过分析PDF第一页的图像内容来判断是否为空\n" +
-            "• 检测区域大小: 从PDF第一页提取的图像区域大小\n" +
-            "• 内容密度阈值: 检测区域内非白色像素占比超过此值则认为有内容"
+            "• 检测区域宽/高(%): 相对图像尺寸的比例，默认约为22.2%/33.3%\n" +
+            "• 水平偏移(%): 相对图像中心的水平位移，负左正右，0居中\n" +
+            "• 预览画布: 固定参考分辨率900×600，红色矩形为检测区域，红点为中心"
         );
         helpText.setEditable(false);
         helpText.setBackground(panel.getBackground());
@@ -401,7 +448,10 @@ public class SettingsDialog extends JDialog {
         // 检测设置
         fileSizeThresholdSpinner.setValue(config.getFileSizeThreshold());
         enableImageDetectionCheckBox.setSelected(config.isEnableImageContentDetection());
-        detectionAreaSpinner.setValue(config.getDetectionAreaWidth());
+        // 使用百分比宽高
+        detectionAreaWidthSpinner.setValue(config.getDetectionAreaWidthPercent());
+        detectionAreaHeightSpinner.setValue(config.getDetectionAreaHeightPercent());
+        horizontalOffsetSpinner.setValue(config.getHorizontalOffsetPercent());
         whitePixelThresholdSpinner.setValue(config.getContentPixelDensityThreshold());
         
         // 短信通知设置
@@ -429,8 +479,10 @@ public class SettingsDialog extends JDialog {
         // 检测设置
         config.setFileSizeThreshold((Integer) fileSizeThresholdSpinner.getValue());
         config.setEnableImageContentDetection(enableImageDetectionCheckBox.isSelected());
-        config.setDetectionAreaWidth((Integer) detectionAreaSpinner.getValue());
-        config.setDetectionAreaHeight((Integer) detectionAreaSpinner.getValue());
+        // 保存百分比宽高
+        config.setDetectionAreaWidthPercent(((Number) detectionAreaWidthSpinner.getValue()).doubleValue());
+        config.setDetectionAreaHeightPercent(((Number) detectionAreaHeightSpinner.getValue()).doubleValue());
+        config.setHorizontalOffsetPercent((Integer) horizontalOffsetSpinner.getValue());
         config.setContentPixelDensityThreshold((Double) whitePixelThresholdSpinner.getValue());
         
         // 短信通知设置
@@ -445,8 +497,93 @@ public class SettingsDialog extends JDialog {
      */
     private void updateImageDetectionControls() {
         boolean enabled = enableImageDetectionCheckBox.isSelected();
-        detectionAreaSpinner.setEnabled(enabled);
+        detectionAreaWidthSpinner.setEnabled(enabled);
+        detectionAreaHeightSpinner.setEnabled(enabled);
+        horizontalOffsetSpinner.setEnabled(enabled);
         whitePixelThresholdSpinner.setEnabled(enabled);
+        if (imagePreviewPanel != null) {
+            imagePreviewPanel.setEnabled(enabled);
+            imagePreviewPanel.repaint();
+        }
+    }
+    
+    private JPanel createImagePreviewPanel() {
+        JPanel preview = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int panelW = getWidth();
+                int panelH = getHeight();
+                int padding = 10;
+                double targetRatio = 900.0 / 600.0; // 9:6
+                double panelRatio = (double) (panelW - 2 * padding) / (panelH - 2 * padding);
+
+                int borderW, borderH;
+                if (panelRatio > targetRatio) {
+                    borderH = panelH - 2 * padding;
+                    borderW = (int) Math.round(borderH * targetRatio);
+                } else {
+                    borderW = panelW - 2 * padding;
+                    borderH = (int) Math.round(borderW / targetRatio);
+                }
+                int offsetX = (panelW - borderW) / 2;
+                int offsetY = (panelH - borderH) / 2;
+
+                // 背景
+                g2.setColor(new Color(245, 245, 245));
+                g2.fillRect(offsetX, offsetY, borderW, borderH);
+                // 边框
+                g2.setColor(new Color(180, 180, 180));
+                g2.drawRect(offsetX, offsetY, borderW, borderH);
+
+                // 从控件获取当前参数（百分比）
+                double areaWPercent = detectionAreaWidthSpinner != null ? ((Number) detectionAreaWidthSpinner.getValue()).doubleValue() : config.getDetectionAreaWidthPercent();
+                double areaHPercent = detectionAreaHeightSpinner != null ? ((Number) detectionAreaHeightSpinner.getValue()).doubleValue() : config.getDetectionAreaHeightPercent();
+                int offsetPercent = horizontalOffsetSpinner != null ? (Integer) horizontalOffsetSpinner.getValue() : config.getHorizontalOffsetPercent();
+
+                // 按参考边框直接用百分比计算ROI尺寸
+                int roiW = (int) Math.round(borderW * (areaWPercent / 100.0));
+                int roiH = (int) Math.round(borderH * (areaHPercent / 100.0));
+                int centerX = offsetX + borderW / 2 + (int) Math.round(offsetPercent / 100.0 * (borderW / 2.0));
+                int centerY = offsetY + borderH / 2;
+
+                int startX = centerX - roiW / 2;
+                int startY = centerY - roiH / 2;
+                int endX = startX + roiW;
+                int endY = startY + roiH;
+
+                // 计算裁剪后可见区域
+                int drawX = Math.max(offsetX, startX);
+                int drawY = Math.max(offsetY, startY);
+                int drawEndX = Math.min(offsetX + borderW, endX);
+                int drawEndY = Math.min(offsetY + borderH, endY);
+                int drawW = Math.max(0, drawEndX - drawX);
+                int drawH = Math.max(0, drawEndY - drawY);
+
+                // 绘制检测区域
+                g2.setColor(new Color(220, 0, 0));
+                if (drawW > 0 && drawH > 0) {
+                    g2.drawRect(drawX, drawY, drawW, drawH);
+                }
+
+                // 中心点（裁剪到边框内）
+                int cx = Math.max(offsetX, Math.min(offsetX + borderW - 1, centerX));
+                int cy = Math.max(offsetY, Math.min(offsetY + borderH - 1, centerY));
+                g2.fillOval(cx - 3, cy - 3, 6, 6);
+
+                // 中线（增强位置感知）
+                g2.setColor(new Color(200, 200, 200));
+                g2.drawLine(offsetX, offsetY + borderH / 2, offsetX + borderW, offsetY + borderH / 2);
+                g2.drawLine(offsetX + borderW / 2, offsetY, offsetX + borderW / 2, offsetY + borderH);
+
+                g2.dispose();
+            }
+        };
+        preview.setPreferredSize(new Dimension(450, 300)); // 9:6比例
+        return preview;
     }
     
     private void updateSmsNotificationControls() {

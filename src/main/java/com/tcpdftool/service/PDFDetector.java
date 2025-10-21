@@ -191,23 +191,42 @@ public class PDFDetector {
      * 计算检测区域
      */
     private DetectionArea calculateDetectionArea(int width, int height) {
-        int areaWidth = config.getDetectionAreaWidth();
-        int areaHeight = config.getDetectionAreaHeight();
+        // 使用百分比配置计算ROI尺寸
+        double areaWidthPercent = config.getDetectionAreaWidthPercent();
+        double areaHeightPercent = config.getDetectionAreaHeightPercent();
         
-        // 确保检测区域不超过图像大小
-        areaWidth = Math.min(areaWidth, width);
-        areaHeight = Math.min(areaHeight, height);
+        int areaWidth = (int) Math.round(width * (areaWidthPercent / 100.0));
+        int areaHeight = (int) Math.round(height * (areaHeightPercent / 100.0));
         
-        // 使用配置的检测区域大小，居中放置
-        int startX = Math.max(0, (width - areaWidth) / 2);
-        int startY = Math.max(0, (height - areaHeight) / 2);
-        int endX = Math.min(width, startX + areaWidth);
-        int endY = Math.min(height, startY + areaHeight);
+        // 约束到图像尺寸范围，至少1像素
+        areaWidth = Math.max(1, Math.min(areaWidth, width));
+        areaHeight = Math.max(1, Math.min(areaHeight, height));
         
-        logger.debug("检测区域计算 - 图像尺寸: {}x{}, 检测区域: {}x{}, 位置: ({},{}) 到 ({},{})", 
-            width, height, areaWidth, areaHeight, startX, startY, endX, endY);
+        // 计算中心点：水平偏移相对图像中心，-100左，+100右，0居中
+        int offsetPercent = config.getHorizontalOffsetPercent();
+        int centerX = (int) Math.round(width / 2.0 + (offsetPercent / 100.0) * (width / 2.0));
+        int centerY = height / 2;
         
-        return new DetectionArea(startX, startY, endX, endY);
+        // 以中心点为基准计算区域，超出边界时仅显示被遮挡部分（通过边界裁剪实现）
+        int startX = centerX - areaWidth / 2;
+        int startY = centerY - areaHeight / 2;
+        int endX = startX + areaWidth;
+        int endY = startY + areaHeight;
+        
+        // 边界裁剪，保证采样坐标有效
+        int clippedStartX = Math.max(0, startX);
+        int clippedStartY = Math.max(0, startY);
+        int clippedEndX = Math.min(width, endX);
+        int clippedEndY = Math.min(height, endY);
+        
+        logger.debug("检测区域计算 - 图像尺寸: {}x{}, 百分比: {}%x{}%, 偏移%: {}, 实际像素: {}x{}, 原始位置: ({},{})->({},{}), 裁剪后: ({},{})->({},{})",
+            width, height,
+            String.format("%.2f", areaWidthPercent), String.format("%.2f", areaHeightPercent), offsetPercent,
+            areaWidth, areaHeight,
+            startX, startY, endX, endY,
+            clippedStartX, clippedStartY, clippedEndX, clippedEndY);
+        
+        return new DetectionArea(clippedStartX, clippedStartY, clippedEndX, clippedEndY);
     }
     
     /**
