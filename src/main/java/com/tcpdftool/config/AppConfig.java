@@ -71,6 +71,13 @@ public class AppConfig {
     @JsonProperty("smsPhoneNumbers")
     private String smsPhoneNumbers = ""; // 多个号码用逗号分隔
     
+    // 重新转换配置
+    @JsonProperty("enableReconversion")
+    private boolean enableReconversion = false;
+    
+    @JsonProperty("reconversionBatPath")
+    private String reconversionBatPath = "";
+    
     // 界面配置
     @JsonProperty("windowWidth")
     private int windowWidth = 1000;
@@ -229,6 +236,22 @@ public class AppConfig {
         this.smsPhoneNumbers = smsPhoneNumbers;
     }
     
+    public boolean isEnableReconversion() {
+        return enableReconversion;
+    }
+    
+    public void setEnableReconversion(boolean enableReconversion) {
+        this.enableReconversion = enableReconversion;
+    }
+    
+    public String getReconversionBatPath() {
+        return reconversionBatPath;
+    }
+    
+    public void setReconversionBatPath(String reconversionBatPath) {
+        this.reconversionBatPath = reconversionBatPath;
+    }
+    
     public int getWindowWidth() {
         return windowWidth;
     }
@@ -284,6 +307,8 @@ public class AppConfig {
         copy.callintegJarPath = this.callintegJarPath;
         copy.smsUsername = this.smsUsername;
         copy.smsPhoneNumbers = this.smsPhoneNumbers;
+        copy.enableReconversion = this.enableReconversion;
+        copy.reconversionBatPath = this.reconversionBatPath;
         copy.windowWidth = this.windowWidth;
         copy.windowHeight = this.windowHeight;
         copy.windowX = this.windowX;

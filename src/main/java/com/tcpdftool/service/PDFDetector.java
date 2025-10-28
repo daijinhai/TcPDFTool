@@ -3,6 +3,8 @@ package com.tcpdftool.service;
 import com.tcpdftool.config.AppConfig;
 import com.tcpdftool.model.DetectionResult;
 import com.tcpdftool.model.PDFFileInfo;
+import com.tcpdftool.model.ReconversionStatus;
+import com.tcpdftool.util.TaskIdExtractor;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.slf4j.Logger;
@@ -27,6 +29,7 @@ public class PDFDetector {
     private final AppConfig config;
     private final ExecutorService executorService;
     private Consumer<PDFFileInfo> onDetectionCompleted;
+    private ReconversionService reconversionService;
     
     public PDFDetector(AppConfig config) {
         this.config = config;
@@ -41,12 +44,26 @@ public class PDFDetector {
     }
     
     /**
+     * 设置重新转换服务
+     */
+    public void setReconversionService(ReconversionService reconversionService) {
+        this.reconversionService = reconversionService;
+    }
+    
+    /**
      * 异步检测PDF文件
      */
     public CompletableFuture<DetectionResult> detectAsync(PDFFileInfo fileInfo) {
         return CompletableFuture.supplyAsync(() -> {
             DetectionResult result = detectPDF(fileInfo);
             fileInfo.setDetectionResult(result);
+            
+            // 提取并设置TASKID
+            String taskId = TaskIdExtractor.extractAndValidateTaskId(fileInfo.getFilePath());
+            fileInfo.setTaskId(taskId);
+            
+            // 处理自动重新转换逻辑
+            handleAutoReconversion(fileInfo, result);
             
             if (onDetectionCompleted != null) {
                 onDetectionCompleted.accept(fileInfo);
@@ -98,6 +115,92 @@ public class PDFDetector {
             fileInfo.setErrorMessage("检测失败: " + e.getMessage());
             return DetectionResult.DETECTION_FAILED;
         }
+    }
+    
+    /**
+     * 处理自动重新转换逻辑
+     */
+    private void handleAutoReconversion(PDFFileInfo fileInfo, DetectionResult result) {
+        // 检查是否需要自动重新转换
+        if (!shouldTriggerAutoReconversion(result)) {
+            fileInfo.setReconversionStatus(ReconversionStatus.NOT_NEEDED);
+            return;
+        }
+        
+        // 检查重新转换服务是否可用
+        if (reconversionService == null) {
+            logger.warn("重新转换服务未初始化，跳过自动重新转换: {}", fileInfo.getFileName());
+            fileInfo.setReconversionStatus(ReconversionStatus.SKIPPED);
+            return;
+        }
+        
+        // 检查重新转换功能是否启用
+        if (!config.isEnableReconversion()) {
+            logger.debug("重新转换功能未启用，跳过自动重新转换: {}", fileInfo.getFileName());
+            fileInfo.setReconversionStatus(ReconversionStatus.SKIPPED);
+            return;
+        }
+        
+        // 检查TASKID是否有效
+        String taskId = fileInfo.getTaskId();
+        if (taskId == null || taskId.trim().isEmpty()) {
+            logger.warn("无法提取TASKID，跳过自动重新转换: {}", fileInfo.getFileName());
+            fileInfo.setReconversionStatus(ReconversionStatus.SKIPPED);
+            return;
+        }
+        
+        // 执行自动重新转换
+        logger.info("触发自动重新转换: {} (TASKID: {})", fileInfo.getFileName(), taskId);
+        fileInfo.setReconversionStatus(ReconversionStatus.PENDING);
+        
+        // 异步执行重新转换
+        CompletableFuture.runAsync(() -> {
+            try {
+                fileInfo.setReconversionStatus(ReconversionStatus.IN_PROGRESS);
+                logger.info("开始执行自动重新转换: {} (TASKID: {})", fileInfo.getFileName(), taskId);
+                
+                // 通知UI更新状态为"进行中"
+                if (onDetectionCompleted != null) {
+                    onDetectionCompleted.accept(fileInfo);
+                }
+                
+                // 执行重新转换并检查返回值
+                boolean success = reconversionService.executeReconversion(taskId);
+                
+                if (success) {
+                    fileInfo.setReconversionStatus(ReconversionStatus.SUCCESS);
+                    logger.info("自动重新转换成功: {} (TASKID: {})", fileInfo.getFileName(), taskId);
+                } else {
+                    fileInfo.setReconversionStatus(ReconversionStatus.FAILED);
+                    logger.warn("自动重新转换失败: {} (TASKID: {})", fileInfo.getFileName(), taskId);
+                }
+                
+                // 通知UI更新最终状态
+                if (onDetectionCompleted != null) {
+                    onDetectionCompleted.accept(fileInfo);
+                }
+                
+            } catch (Exception e) {
+                fileInfo.setReconversionStatus(ReconversionStatus.FAILED);
+                logger.error("自动重新转换异常: {} (TASKID: {}) - {}", 
+                    fileInfo.getFileName(), taskId, e.getMessage(), e);
+                
+                // 通知UI更新异常状态
+                if (onDetectionCompleted != null) {
+                    onDetectionCompleted.accept(fileInfo);
+                }
+            }
+        }, executorService);
+    }
+    
+    /**
+     * 判断是否应该触发自动重新转换
+     */
+    private boolean shouldTriggerAutoReconversion(DetectionResult result) {
+        // 当检测结果为空（疑似空文件）时触发重新转换
+        return result == DetectionResult.SUSPICIOUS_EMPTY_SIZE ||
+               result == DetectionResult.SUSPICIOUS_EMPTY_PIXELS ||
+               result == DetectionResult.SUSPICIOUS_EMPTY_BOTH;
     }
     
     /**

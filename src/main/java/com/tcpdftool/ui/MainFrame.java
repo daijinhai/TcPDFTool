@@ -6,6 +6,7 @@ import com.tcpdftool.model.PDFFileInfo;
 import com.tcpdftool.service.FileScanner;
 import com.tcpdftool.service.NotificationService;
 import com.tcpdftool.service.PDFDetector;
+import com.tcpdftool.service.ReconversionService;
 import com.tcpdftool.util.SystemUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,7 @@ public class MainFrame extends JFrame {
     private FileScanner fileScanner;
     private PDFDetector pdfDetector;
     private NotificationService notificationService;
+    private ReconversionService reconversionService;
     
     // UI组件
     private JTable fileTable;
@@ -69,6 +71,7 @@ public class MainFrame extends JFrame {
         this.fileScanner = new FileScanner(config);
         this.pdfDetector = new PDFDetector(config);
         this.notificationService = new NotificationService(config);
+        this.reconversionService = new ReconversionService(config);
         
         // 设置回调
         setupServiceCallbacks();
@@ -268,7 +271,7 @@ public class MainFrame extends JFrame {
         panel.setBorder(BorderFactory.createTitledBorder("PDF文件列表"));
         
         // 创建表格
-        String[] columnNames = {"序号", "状态", "文件名", "大小", "创建时间", "检测结果", "通知状态", "文件路径"};
+        String[] columnNames = {"序号", "状态", "文件名", "大小", "创建时间", "检测结果", "通知状态", "重新转换状态", "文件路径"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -291,12 +294,18 @@ public class MainFrame extends JFrame {
         fileTable.getColumnModel().getColumn(4).setPreferredWidth(120); // 创建时间
         fileTable.getColumnModel().getColumn(5).setPreferredWidth(80);  // 检测结果
         fileTable.getColumnModel().getColumn(6).setPreferredWidth(80);  // 通知状态
-        fileTable.getColumnModel().getColumn(7).setPreferredWidth(300); // 文件路径
+        fileTable.getColumnModel().getColumn(7).setPreferredWidth(100); // 重新转换状态
+        fileTable.getColumnModel().getColumn(8).setPreferredWidth(300); // 文件路径
+        
+        // 设置表格自动调整模式为关闭，以便显示水平滚动条
+        fileTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         
         // 添加右键菜单
         createTableContextMenu();
         
         JScrollPane scrollPane = new JScrollPane(fileTable);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         panel.add(scrollPane, BorderLayout.CENTER);
         
         // 添加文件计数标签
@@ -385,8 +394,16 @@ public class MainFrame extends JFrame {
         // PDF检测回调
         pdfDetector.setOnDetectionCompleted(this::onDetectionCompleted);
         
+        // 设置重新转换服务到PDF检测器
+        pdfDetector.setReconversionService(reconversionService);
+        
         // 通知服务UI日志回调
         notificationService.setUiLogCallback(msg -> {
+            javax.swing.SwingUtilities.invokeLater(() -> appendLog(msg));
+        });
+        
+        // 重新转换服务UI日志回调
+        reconversionService.setUiLogCallback(msg -> {
             javax.swing.SwingUtilities.invokeLater(() -> appendLog(msg));
         });
     }
@@ -584,12 +601,14 @@ public class MainFrame extends JFrame {
             try { fileScanner.stopScanning(); } catch (Exception ignored) {}
             try { pdfDetector.shutdown(); } catch (Exception ignored) {}
             try { notificationService.shutdown(); } catch (Exception ignored) {}
+            try { reconversionService.shutdown(); } catch (Exception ignored) {}
             
             // 使用最新配置重建服务并重新绑定回调
             AppConfig cfg = configManager.getConfig();
             fileScanner = new FileScanner(cfg);
             pdfDetector = new PDFDetector(cfg);
             notificationService = new NotificationService(cfg);
+            reconversionService = new ReconversionService(cfg);
             setupServiceCallbacks();
             appendLog("服务已重载完成，新的检测规则将生效");
         }
@@ -740,6 +759,7 @@ public class MainFrame extends JFrame {
             fileInfo.getShortCreateTime(),
             fileInfo.getDetectionResult().getFullDisplayText(),
             fileInfo.getNotificationStatusText(),
+            fileInfo.getReconversionStatusText(),
             fileInfo.getFilePath()
         };
         tableModel.addRow(rowData);
@@ -751,11 +771,12 @@ public class MainFrame extends JFrame {
      */
     private void updateFileInTable(PDFFileInfo fileInfo) {
         for (int i = 0; i < tableModel.getRowCount(); i++) {
-            String filePath = (String) tableModel.getValueAt(i, 7); // 文件路径列现在是第7列
+            String filePath = (String) tableModel.getValueAt(i, 8); // 文件路径列现在是第8列
             if (filePath.equals(fileInfo.getFilePath())) {
                 tableModel.setValueAt(fileInfo.getStatusIcon(), i, 1); // 状态列现在是第1列
                 tableModel.setValueAt(fileInfo.getDetectionResult().getFullDisplayText(), i, 5); // 检测结果列现在是第5列
                 tableModel.setValueAt(fileInfo.getNotificationStatusText(), i, 6); // 通知状态列现在是第6列
+                tableModel.setValueAt(fileInfo.getReconversionStatusText(), i, 7); // 重新转换状态列现在是第7列
                 break;
             }
         }
@@ -776,7 +797,7 @@ public class MainFrame extends JFrame {
         if (selectedRow >= 0) {
             // 将视图行索引转换为模型行索引
             int modelRow = fileTable.convertRowIndexToModel(selectedRow);
-            String filePath = (String) tableModel.getValueAt(modelRow, 7); // 文件路径在第7列
+            String filePath = (String) tableModel.getValueAt(modelRow, 8); // 文件路径在第8列
             if (filePath != null && !filePath.trim().isEmpty()) {
                 File file = new File(filePath);
                 if (file.exists()) {
@@ -800,7 +821,7 @@ public class MainFrame extends JFrame {
         if (selectedRow >= 0) {
             // 将视图行索引转换为模型行索引
             int modelRow = fileTable.convertRowIndexToModel(selectedRow);
-            String filePath = (String) tableModel.getValueAt(modelRow, 7); // 文件路径在第7列
+            String filePath = (String) tableModel.getValueAt(modelRow, 8); // 文件路径在第8列
             if (filePath != null && !filePath.trim().isEmpty()) {
                 File file = new File(filePath);
                 if (file.exists()) {

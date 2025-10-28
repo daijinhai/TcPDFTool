@@ -9,7 +9,7 @@ out/
 # === Java & Build Artifacts ===
 # Maven build output
 /target/
-
+/target/*
 # Compiled classes
 *.class
 

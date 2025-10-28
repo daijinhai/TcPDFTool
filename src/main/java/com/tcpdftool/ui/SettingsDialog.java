@@ -49,6 +49,10 @@ public class SettingsDialog extends JDialog {
     private JTextField smsUsernameField;
     private JTextField smsPhoneNumbersField;
     
+    // 重新转换设置组件
+    private JCheckBox enableReconversionCheckBox;
+    private JTextField reconversionBatPathField;
+    
     public SettingsDialog(Frame parent, ConfigManager configManager) {
         super(parent, "设置", true);
         this.configManager = configManager;
@@ -81,6 +85,10 @@ public class SettingsDialog extends JDialog {
         // 通知设置选项卡
         JPanel notificationPanel = createNotificationSettingsPanel();
         tabbedPane.addTab("通知设置", notificationPanel);
+        
+        // 重新转换设置选项卡
+        JPanel reconversionPanel = createReconversionSettingsPanel();
+        tabbedPane.addTab("重新转换设置", reconversionPanel);
         
         add(tabbedPane, BorderLayout.CENTER);
         
@@ -161,6 +169,99 @@ public class SettingsDialog extends JDialog {
         helpText.setEditable(false);
         helpText.setBackground(panel.getBackground());
         helpText.setFont(helpText.getFont().deriveFont(Font.PLAIN, 11f));
+        panel.add(helpText, gbc);
+        
+        return panel;
+    }
+    
+    /**
+     * 创建重新转换设置面板
+     */
+    private JPanel createReconversionSettingsPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        GridBagConstraints gbc = new GridBagConstraints();
+        
+        // 启用重新转换
+        gbc.gridx = 0; gbc.gridy = 0;
+        gbc.gridwidth = 3;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        enableReconversionCheckBox = new JCheckBox("启用重新转换功能");
+        enableReconversionCheckBox.addActionListener(e -> updateReconversionControls());
+        panel.add(enableReconversionCheckBox, gbc);
+        
+        // bat文件路径
+        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.gridwidth = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        JLabel batPathLabel = new JLabel("BAT文件路径:");
+        panel.add(batPathLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        reconversionBatPathField = new JTextField();
+        panel.add(reconversionBatPathField, gbc);
+        
+        gbc.gridx = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        JButton browseBatButton = new JButton("浏览");
+        browseBatButton.addActionListener(e -> browseReconversionBat());
+        panel.add(browseBatButton, gbc);
+        
+        // taskId输入和测试按钮
+        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridwidth = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        JLabel taskIdLabel = new JLabel("测试TaskId:");
+        panel.add(taskIdLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        JTextField testTaskIdField = new JTextField();
+        testTaskIdField.setToolTipText("输入用于测试的TaskId");
+        panel.add(testTaskIdField, gbc);
+        
+        gbc.gridx = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        JButton testConversionButton = new JButton("测试转换");
+        testConversionButton.addActionListener(e -> testReconversion(testTaskIdField.getText()));
+        panel.add(testConversionButton, gbc);
+        
+        // 添加说明文本
+        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridwidth = 3;
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weighty = 1.0;
+        gbc.insets = new Insets(10, 5, 5, 5);
+        JTextArea helpText = new JTextArea(
+            "说明:\n" +
+            "• 重新转换功能: 通过执行BAT脚本进行文档重新转换\n" +
+            "• BAT文件内容应包含TC_ROOT、TC_DATA设置和dispatcher_util.exe调用\n" +
+            "• TaskId动态替换: BAT文件中使用{TASKID}作为占位符，系统会自动替换\n\n" +
+            "BAT文件内容模板:\n" +
+            "SET TC_ROOT=D:\\Siemens\\Teamcenter13\n" +
+            "SET TC_DATA=Z:\\\n" +
+            "Z:\\\\tc_profilevars\n" +
+            "D:\\Siemens\\Teamcenter13\\bin\\dispatcher_util.exe -u=dcproxy -p=Deptc!2# -g=dba -a=resubmit -force -taskid={TASKID}\n\n" +
+            "使用步骤:\n" +
+            "1. 选择包含{TASKID}占位符的BAT文件\n" +
+            "2. 启用重新转换功能\n" +
+            "3. 输入测试TaskId并点击\"测试转换\"验证配置\n\n" +
+            "注意:\n" +
+            "• 确保BAT文件路径正确且文件存在\n" +
+            "• BAT文件必须包含{TASKID}占位符\n" +
+            "• 请根据实际环境调整路径和参数\n" +
+            "• 测试前请确保Teamcenter环境已正确配置"
+        );
+        helpText.setEditable(false);
+        helpText.setBackground(panel.getBackground());
+        helpText.setFont(helpText.getFont().deriveFont(12f));
+        helpText.setBorder(BorderFactory.createTitledBorder("使用说明"));
         panel.add(helpText, gbc);
         
         return panel;
@@ -460,9 +561,14 @@ public class SettingsDialog extends JDialog {
         smsUsernameField.setText(config.getSmsUsername());
         smsPhoneNumbersField.setText(config.getSmsPhoneNumbers());
         
+        // 重新转换设置
+        enableReconversionCheckBox.setSelected(config.isEnableReconversion());
+        reconversionBatPathField.setText(config.getReconversionBatPath());
+        
         // 更新控件状态
         updateImageDetectionControls();
         updateSmsNotificationControls();
+        updateReconversionControls();
     }
     
     /**
@@ -490,6 +596,10 @@ public class SettingsDialog extends JDialog {
         config.setCallintegJarPath(callintegJarPathField.getText().trim());
         config.setSmsUsername(smsUsernameField.getText().trim());
         config.setSmsPhoneNumbers(smsPhoneNumbersField.getText().trim());
+        
+        // 重新转换设置
+        config.setEnableReconversion(enableReconversionCheckBox.isSelected());
+        config.setReconversionBatPath(reconversionBatPathField.getText().trim());
     }
     
     /**
@@ -591,6 +701,99 @@ public class SettingsDialog extends JDialog {
         callintegJarPathField.setEnabled(enabled);
         smsUsernameField.setEnabled(enabled);
         smsPhoneNumbersField.setEnabled(enabled);
+    }
+    
+    /**
+     * 更新重新转换控件状态
+     */
+    private void updateReconversionControls() {
+        boolean enabled = enableReconversionCheckBox.isSelected();
+        reconversionBatPathField.setEnabled(enabled);
+    }
+
+    /**
+     * 浏览重新转换BAT文件
+     */
+    private void browseReconversionBat() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        fileChooser.setDialogTitle("选择重新转换BAT文件");
+        
+        // 设置文件过滤器，只显示bat文件
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            @Override
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().toLowerCase().endsWith(".bat");
+            }
+            
+            @Override
+            public String getDescription() {
+                return "批处理文件 (*.bat)";
+            }
+        });
+        
+        // 如果当前有路径，设置为默认目录
+        String currentPath = reconversionBatPathField.getText().trim();
+        if (!currentPath.isEmpty()) {
+            File currentFile = new File(currentPath);
+            if (currentFile.getParentFile() != null && currentFile.getParentFile().exists()) {
+                fileChooser.setCurrentDirectory(currentFile.getParentFile());
+            }
+        }
+        
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = fileChooser.getSelectedFile();
+            reconversionBatPathField.setText(selectedFile.getAbsolutePath());
+        }
+    }
+
+    /**
+     * 测试重新转换功能
+     */
+    private void testReconversion(String taskId) {
+        if (taskId == null || taskId.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "请输入测试TaskId！", 
+                "输入错误", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        // 检查操作系统
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (!osName.contains("win")) {
+            JOptionPane.showMessageDialog(this, 
+                "重新转换功能仅支持Windows系统！\n" +
+                "当前系统: " + osName + "\n" +
+                "BAT文件是Windows批处理文件，无法在macOS/Linux系统上执行。", 
+                "系统不支持", 
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        // 临时保存当前UI配置
+        saveConfigFromUI();
+        
+        // 创建临时重新转换服务进行测试
+        com.tcpdftool.service.ReconversionService testService = 
+            new com.tcpdftool.service.ReconversionService(config);
+        
+        SwingUtilities.invokeLater(() -> {
+            boolean success = testService.testReconversion(taskId.trim());
+            if (success) {
+                JOptionPane.showMessageDialog(this, 
+                    "重新转换测试成功！", 
+                    "测试结果", 
+                    JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, 
+                    "重新转换测试失败，请检查BAT文件路径和内容配置。\n" +
+                    "确保BAT文件存在且包含{TASKID}占位符。", 
+                    "测试结果", 
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        });
     }
     
     /**

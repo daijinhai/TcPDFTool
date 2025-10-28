@@ -16,6 +16,8 @@ public class PDFFileInfo {
     private DetectionResult detectionResult;
     private boolean notificationSent;
     private String errorMessage;
+    private ReconversionStatus reconversionStatus;
+    private String taskId;
     
     public PDFFileInfo(String fileName, String filePath, long fileSize, Date createTime) {
         this.fileName = fileName;
@@ -25,6 +27,8 @@ public class PDFFileInfo {
         this.modifyTime = createTime;
         this.detectionResult = DetectionResult.PENDING;
         this.notificationSent = false;
+        this.reconversionStatus = ReconversionStatus.NOT_NEEDED;
+        this.taskId = null;
     }
     
     // Getters and Setters
@@ -90,6 +94,29 @@ public class PDFFileInfo {
     
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+    
+    public ReconversionStatus getReconversionStatus() {
+        return reconversionStatus;
+    }
+    
+    public void setReconversionStatus(ReconversionStatus reconversionStatus) {
+        this.reconversionStatus = reconversionStatus;
+    }
+    
+    public String getTaskId() {
+        return taskId;
+    }
+    
+    /**
+     * 获取重新转换状态的显示文本
+     */
+    public String getReconversionStatusText() {
+        return reconversionStatus.getDisplayName();
+    }
+    
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
     }
     
     // 工具方法
