@@ -556,6 +556,12 @@ public class MainFrame extends JFrame {
             return;
         }
         
+        // 刷新前重置本轮会话状态，避免使用上一轮的可疑列表导致误发短信
+        currentScanSuspiciousFiles.clear();
+        pendingDetections = 0;
+        totalFilesInCurrentScan = 0;
+        appendLog("正在刷新文件列表并重新检测...");
+        
         // 临时启动扫描获取文件列表
         FileScanner tempScanner = new FileScanner(config);
         tempScanner.setOnScanCompleted(files -> {
@@ -566,8 +572,11 @@ public class MainFrame extends JFrame {
                     // 异步检测
                     pdfDetector.detectAsync(fileInfo);
                 }
+                // 建立刷新会话的统计信息（用于批量通知消息体）
+                totalFilesInCurrentScan = files.size();
+                pendingDetections = files.size();
                 updateFileCount();
-                appendLog("刷新完成，发现 " + files.size() + " 个PDF文件");
+                appendLog("刷新完成，发现 " + files.size() + " 个PDF文件，正在检测...");
             });
         });
         
@@ -580,8 +589,6 @@ public class MainFrame extends JFrame {
             }
             tempScanner.stopScanning();
         });
-        
-        appendLog("正在刷新文件列表...");
     }
     
     /**
@@ -661,6 +668,11 @@ public class MainFrame extends JFrame {
      */
     private void onNewFileFound(PDFFileInfo fileInfo) {
         SwingUtilities.invokeLater(() -> {
+            // 为新文件检测建立独立会话，避免沿用上一轮状态导致误发通知
+            currentScanSuspiciousFiles.clear();
+            pendingDetections = 1;
+            totalFilesInCurrentScan = 1;
+            
             addFileToTable(fileInfo);
             updateFileCount();
             appendLog("发现新文件: " + fileInfo.getFileName());
@@ -740,6 +752,10 @@ public class MainFrame extends JFrame {
                 }
                 // 只显示批量通知的整体结果
                 appendLog("本轮批量通知发送完成");
+                // 清理会话状态，避免后续回调再次使用旧的可疑列表
+                currentScanSuspiciousFiles.clear();
+                pendingDetections = 0;
+                totalFilesInCurrentScan = 0;
             });
         });
     }
